@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#087f5b">
+<title>GrabFood – Bản đồ vùng nóng</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#17211d;background:#f5f7f6}
+*{box-sizing:border-box}body{margin:0}header{background:#087f5b;color:#fff;padding:16px 16px 13px}
+h1{font-size:20px;margin:0 0 5px}header p{font-size:13px;margin:0;opacity:.92}
+main{padding:12px;max-width:900px;margin:auto}.panel{background:white;border:1px solid #dce5e0;border-radius:14px;padding:13px;margin-bottom:12px}
+#map{height:48vh;min-height:300px;border-radius:12px;overflow:hidden;border:1px solid #dce5e0}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:120px}
+button,select,input{font:inherit;border-radius:10px;border:1px solid #cbd7d0;padding:11px;background:white;width:100%;min-height:42px}
+button{background:#087f5b;color:white;border:0;font-weight:650;cursor:pointer}
+button.secondary{background:#edf5f1;color:#075c43;border:1px solid #c8e0d4}
+button.danger{background:#fff0ef;color:#a52822;border:1px solid #f1c6c3}
+label{font-size:13px;font-weight:650;display:block;margin:9px 0 5px}
+small,.muted{color:#5a6b63;font-size:12px;line-height:1.45}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{background:#f1f7f3;border-radius:10px;padding:10px}.stat strong{display:block;font-size:20px;color:#075c43}.stat span{font-size:11px;color:#53655c}
+#orders{padding-left:19px;margin-bottom:0}#orders li{margin:8px 0;font-size:13px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12px}.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+#status{font-size:13px;margin:8px 0 0;color:#075c43}
+footer{padding:4px 2px 20px}
+@media(min-width:700px){#map{height:520px}.layout{display:grid;grid-template-columns:1.3fr 1fr;gap:12px}.layout .panel{margin-bottom:12px}}
+</style>
+</head>
+<body>
+<header><h1>GrabFood · Bản đồ vùng nóng</h1><p>Ghi nhận đơn thật và xem khu vực có hoạt động cao từ dữ liệu của bạn</p></header>
+<main>
+ <section class="panel">
+  <div class="stats">
+   <div class="stat"><strong id="total">0</strong><span>Đơn đã ghi</span></div>
+   <div class="stat"><strong id="today">0</strong><span>Đơn hôm nay</span></div>
+   <div class="stat"><strong id="areas">0</strong><span>Ô bản đồ có đơn</span></div>
+  </div>
+  <p class="muted">Màu vùng nóng phản ánh các đơn bạn tự ghi nhận, không phải dữ liệu đơn trực tiếp từ Grab và không bảo đảm có đơn mới.</p>
+ </section>
+ <section class="panel">
+  <div id="map" aria-label="Bản đồ vùng nóng"></div>
+  <div class="legend" style="margin-top:10px">
+   <span><i class="dot" style="background:#f5c542"></i>Ít dữ liệu</span>
+   <span><i class="dot" style="background:#f08c32"></i>Vừa</span>
+   <span><i class="dot" style="background:#dc3545"></i>Nhiều đơn đã ghi</span>
+   <span><i class="dot" style="background:#087fdb"></i>Vị trí của bạn</span>
+  </div>
+  <p id="status">Bản đồ sẵn sàng. Bấm “Lấy vị trí GPS” để định vị.</p>
+  <div class="row" style="margin-top:9px">
+   <button id="gps">Lấy vị trí GPS</button>
+   <button class="secondary" id="center">Xem toàn bộ dữ liệu</button>
+  </div>
+ </section>
+ <div class="layout">
+  <section class="panel">
+   <h3 style="margin:0 0 4px">Ghi nhận một đơn</h3>
+   <p class="muted">Nhập sau khi có đơn thật. Nếu đã bật GPS, vị trí hiện tại sẽ được điền tự động; bạn cũng có thể chạm lên bản đồ để chọn vị trí.</p>
+   <label for="kind">Trạng thái</label>
+   <select id="kind"><option value="received">Có đơn mới</option><option value="completed">Đã giao xong</option><option value="cancelled">Đơn bị hủy</option></select>
+   <div class="row">
+    <div><label for="lat">Vĩ độ</label><input id="lat" type="number" step="any" placeholder="Ví dụ: 16.0678"></div>
+    <div><label for="lng">Kinh độ</label><input id="lng" type="number" step="any" placeholder="Ví dụ: 108.2208"></div>
+   </div>
+   <label for="note">Ghi chú (không bắt buộc)</label><input id="note" maxlength="100" placeholder="Ví dụ: gần khu ăn uống">
+   <div class="row" style="margin-top:10px"><button id="save">Lưu đơn thực tế</button><button class="secondary" id="clearform">Xóa ô nhập</button></div>
+  </section>
+  <section class="panel">
+   <h3 style="margin:0 0 4px">Phân tích</h3>
+   <label for="period">Khoảng thời gian</label>
+   <select id="period"><option value="all">Toàn bộ lịch sử</option><option value="24">24 giờ gần đây</option><option value="168">7 ngày gần đây</option></select>
+   <p id="analysis" class="muted">Ghi nhận vài đơn thật để bắt đầu xem xu hướng.</p>
+   <h3 style="margin:16px 0 4px">Đơn gần đây</h3>
+   <ol id="orders"><li class="muted">Chưa có dữ liệu.</li></ol>
+   <div class="row" style="margin-top:12px"><button class="secondary" id="export">Xuất CSV</button><button class="danger" id="wipe">Xóa toàn bộ dữ liệu</button></div>
+  </section>
+ </div>
+ <footer class="muted">Dữ liệu lưu cục bộ trong trình duyệt trên thiết bị này. Xuất CSV để sao lưu. Bản đồ cần kết nối Internet; GPS thường yêu cầu trang HTTPS và sự cho phép của bạn. Bản đồ © OpenStreetMap, thư viện Leaflet.</footer>
+</main>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(() => {
+ 'use strict';
+ const KEY='gf_hotmap_orders_v1';
+ const $=id=>document.getElementById(id);
+ let orders=[];
+ try { orders=JSON.parse(localStorage.getItem(KEY)||'[]'); if(!Array.isArray(orders)) orders=[]; } catch(e){orders=[];}
+ const map=L.map('map').setView([16.0678,108.2208],13);
+ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19, attribution:'&copy; OpenStreetMap contributors'
+ }).addTo(map);
+ const layer=L.layerGroup().addTo(map);
+ let currentMarker=null, selectedMarker=null, bounds=[];
+ const status=$('status');
+ const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ function saveStorage(){try{localStorage.setItem(KEY,JSON.stringify(orders));}catch(e){status.textContent='Không lưu được dữ liệu: bộ nhớ trình duyệt có thể đầy.';}}
+ function validCoord(lat,lng){return Number.isFinite(lat)&&Number.isFinite(lng)&&lat>=-90&&lat<=90&&lng>=-180&&lng<=180;}
+ function filtered(){
+  const p=$('period').value;
+  if(p==='all') return orders;
+  const cutoff=Date.now()-Number(p)*3600000;
+  return orders.filter(o=>new Date(o.time).getTime()>=cutoff);
+ }
+ function color(n){return n>=5?'#dc3545':n>=3?'#f08c32':'#f5c542';}
+ function render(){
+  layer.clearLayers(); bounds=[];
+  const data=filtered();
+  const received=data.filter(o=>o.kind==='received');
+  const completed=data.filter(o=>o.kind==='completed');
+  const todayKey=new Date().toLocaleDateString('sv-SE');
+  $('total').textContent=orders.length;
+  $('today').textContent=orders.filter(o=>new Date(o.time).toLocaleDateString('sv-SE')===todayKey).length;
+  const cells={};
+  received.forEach(o=>{
+   const key=(Math.round(o.lat*900)/900).toFixed(3)+','+(Math.round(o.lng*900)/900).toFixed(3);
+   if(!cells[key]) cells[key]={lat:o.lat,lng:o.lng,count:0,last:o.time};
+   cells[key].count++;
+   if(new Date(o.time)>new Date(cells[key].last)) cells[key].last=o.time;
+  });
+  $('areas').textContent=Object.keys(cells).length;
+  Object.values(cells).forEach(c=>{
+   const circle=L.circle([c.lat,c.lng],{radius:260,color:color(c.count),fillColor:color(c.count),fillOpacity:.24,weight:2}).addTo(layer);
+   circle.bindPopup('<b>Vùng đã ghi nhận</b><br>Số lần có đơn được ghi: '+c.count+'<br>Gần nhất: '+new Date(c.last).toLocaleString('vi-VN')+'<br><small>Không phải dự báo đơn trực tiếp.</small>');
+   bounds.push([c.lat,c.lng]);
+  });
+  orders.slice(-100).reverse().forEach(o=>{
+   const label=o.kind==='received'?'Có đơn mới':o.kind==='completed'?'Đã giao xong':'Đơn bị hủy';
+   const m=L.circleMarker([o.lat,o.lng],{radius:5,color:'#ffffff',weight:1,fillColor:o.kind==='received'?'#dc3545':o.kind==='completed'?'#087f5b':'#6c757d',fillOpacity:.95}).addTo(layer);
+   m.bindPopup('<b>'+label+'</b><br>'+new Date(o.time).toLocaleString('vi-VN')+(o.note?'<br>'+escapeHtml(o.note):''));
+   bounds.push([o.lat,o.lng]);
+  });
+  $('orders').innerHTML=orders.length?orders.slice(-8).reverse().map(o=>{
+   const label=o.kind==='received'?'Có đơn':o.kind==='completed'?'Đã giao':'Đã hủy';
+   return '<li><b>'+label+'</b> · '+new Date(o.time).toLocaleString('vi-VN')+'<br><span class="muted">'+o.lat.toFixed(5)+', '+o.lng.toFixed(5)+(o.note?' · '+escapeHtml(o.note):'')+'</span></li>';
+  }).join(''):'<li class="muted">Chưa có dữ liệu.</li>';
+  const top=Object.values(cells).sort((a,b)=>b.count-a.count)[0];
+  $('analysis').textContent=received.length
+   ? 'Trong khoảng đã chọn: '+received.length+' lần ghi nhận có đơn, '+completed.length+' đơn hoàn thành. '+(top?'Ô có nhiều lần ghi nhận nhất có '+top.count+' lần; đây chỉ là thống kê lịch sử, chưa đủ để kết luận nhu cầu tương lai.':'')
+   : 'Chưa có lần ghi nhận đơn mới trong khoảng này. Hãy ghi dữ liệu thực tế để so sánh.';
+ }
+ function setCoords(lat,lng){
+  $('lat').value=lat.toFixed(6);$('lng').value=lng.toFixed(6);
+  if(selectedMarker) map.removeLayer(selectedMarker);
+  selectedMarker=L.marker([lat,lng]).addTo(map).bindPopup('Vị trí được chọn để ghi đơn').openPopup();
+ }
+ map.on('click',e=>{setCoords(e.latlng.lat,e.latlng.lng);status.textContent='Đã chọn vị trí trên bản đồ. Nhập trạng thái rồi lưu nếu đây là dữ liệu đơn thực tế.';});
+ $('gps').addEventListener('click',()=>{
+  if(!navigator.geolocation){status.textContent='Trình duyệt không hỗ trợ GPS.';return;}
+  status.textContent='Đang lấy vị trí… Hãy cho phép Safari truy cập vị trí nếu được hỏi.';
+  navigator.geolocation.getCurrentPosition(pos=>{
+   const lat=pos.coords.latitude,lng=pos.coords.longitude;
+   setCoords(lat,lng);map.setView([lat,lng],15);
+   if(currentMarker) map.removeLayer(currentMarker);
+   currentMarker=L.circleMarker([lat,lng],{radius:9,color:'#fff',weight:3,fillColor:'#087fdb',fillOpacity:1}).addTo(map).bindPopup('Vị trí hiện tại của bạn');
+   currentMarker.openPopup();status.textContent='Đã lấy vị trí. GPS có thể sai lệch tùy môi trường.';
+  },err=>{status.textContent=err.code===1?'Bạn chưa cấp quyền vị trí. Hãy kiểm tra cài đặt quyền của Safari.':err.code===2?'Không xác định được vị trí. Hãy bật Dịch vụ định vị và thử lại.':'Hết thời gian chờ GPS. Hãy thử lại ngoài trời.';},{enableHighAccuracy:true,timeout:15000,maximumAge:10000});
+ });
+ $('save').addEventListener('click',()=>{
+  const lat=Number($('lat').value),lng=Number($('lng').value);
+  if(!validCoord(lat,lng)){status.textContent='Hãy nhập tọa độ hợp lệ hoặc chọn vị trí trên bản đồ.';return;}
+  orders.push({id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random()),lat,lng,kind:$('kind').value,note:$('note').value.trim(),time:new Date().toISOString()});
+  saveStorage();$('note').value='';render();status.textContent='Đã lưu dữ liệu trên thiết bị này.';
+ });
+ $('clearform').addEventListener('click',()=>{$('lat').value='';$('lng').value='';$('note').value='';if(selectedMarker){map.removeLayer(selectedMarker);selectedMarker=null;}});
+ $('period').addEventListener('change',render);
+ $('center').addEventListener('click',()=>{if(bounds.length) map.fitBounds(bounds,{padding:[25,25],maxZoom:15});else map.setView([16.0678,108.2208],13);});
+ $('export').addEventListener('click',()=>{
+  const rows=[['time','status','latitude','longitude','note'],...orders.map(o=>[o.time,o.kind,o.lat,o.lng,o.note||''])];
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='grabfood_orders.csv';a.click();URL.revokeObjectURL(url);
+ });
+ $('wipe').addEventListener('click',()=>{
+  if(confirm('Xóa toàn bộ dữ liệu đã lưu trên trình duyệt này? Bạn nên xuất CSV trước nếu cần sao lưu.')){orders=[];saveStorage();render();status.textContent='Đã xóa dữ liệu trên thiết bị này.';}
+ });
+ render();
+})();
+</script>
+</body>
+</html>
